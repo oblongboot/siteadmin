@@ -1,0 +1,2 @@
+# siteadmin
+.oblongboot.dev
