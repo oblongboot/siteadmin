@@ -1,0 +1,72 @@
+name: AutoRelease
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write 
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get next version based on existing releases
+        id: version
+        run: |
+          echo "Fetching release count..."
+          RELEASE_COUNT=$(gh release list --limit 1000 --json tagName -q '. | length' || echo 0)
+          NEXT_VERSION="1.0.$((RELEASE_COUNT + 1))"
+          echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $NEXT_VERSION"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create ZIP of repository
+        run: |
+          zip -r release.zip . \
+            -x "*.git*" \
+            -x "node_modules/*" \
+            -x "__pycache__/*" \
+            -x "*.pyc" \
+            -x ".github/*"
+
+      - name: Delete existing release if present
+        run: |
+          if gh release view ${{ steps.version.outputs.version }} > /dev/null 2>&1; then
+            echo "Deleting existing release ${{ steps.version.outputs.version }}"
+            gh release delete ${{ steps.version.outputs.version }} -y
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: "Release ${{ steps.version.outputs.version }}"
+          body: |
+            **Automated release from latest commit**
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+            Message: ${{ github.event.head_commit.message }}
+
+            ## Notes
+            Incremental version based on total release count.
+          files: |
+            release.zip
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Notify backend of push
+        run: |
+          curl -X POST https://admin.oblongboot.dev/events/recive \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.BACKEND_SECRET }}" \
