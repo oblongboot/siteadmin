@@ -24,7 +24,7 @@ class CDNLoader:
             return None
 
         files = os.listdir(self.current_path)
-        cdn_pattern = re.compile(r'^cdn-(\d+\.\d+\.\d+)$')
+        cdn_pattern = re.compile(r'^admin-(\d+\.\d+\.\d+)$')
 
         cdn_dirs = []
         for file in files:
